@@ -13,9 +13,14 @@ import AlamofireImage
 import AVFoundation
 import RealmSwift
 
-public class QRoomService:NSObject{    
-    public func sync(onRoom room:QRoom){
+public class QRoomService:NSObject{
+    var isSyncing: Bool = false
+    public func sync(onRoom room:QRoom, notifyUI: Bool = false, onSuccess: @escaping ((QRoom)->Void) = {_ in }){
+        if self.isSyncing {
+            return
+        }
         
+        self.isSyncing = true
         if room.isInvalidated {
             return
         }
@@ -24,7 +29,9 @@ public class QRoomService:NSObject{
             "id" : room.id as AnyObject,
             "token"  : Qiscus.shared.config.USER_TOKEN as AnyObject
         ]
+        
         QiscusService.session.request(loadURL, method: .get, parameters: parameters, encoding: URLEncoding.default, headers: QiscusConfig.sharedInstance.requestHeader).responseJSON(completionHandler: {responseData in
+            self.isSyncing = false
             if let response = responseData.result.value {
                 let json = JSON(response)
                 let results = json["results"]
@@ -38,7 +45,7 @@ public class QRoomService:NSObject{
                         if r.isInvalidated {
                             return
                         }
-                        r.syncRoomData(withJSON: roomData)
+                        r.syncRoomData(withJSON: roomData, onSuccess: onSuccess)
                         
                         let commentPayload = results["comments"].arrayValue
                         var needSync = false
@@ -51,11 +58,14 @@ public class QRoomService:NSObject{
                             }
                         }
                         if needSync {
-                            QChatService.syncProcess()
+//                            QChatService.syncProcess()
                         }
-                        DispatchQueue.main.async {
-                            if let mainRoom = QRoom.room(withId: roomId){
-                                mainRoom.delegate?.room?(didFinishSync: mainRoom)
+                        
+                        if notifyUI {
+                            DispatchQueue.main.async {
+                                if let mainRoom = QRoom.room(withId: roomId){
+                                    mainRoom.delegate?.room?(didFinishSync: mainRoom)
+                                }
                             }
                         }
                     }
@@ -97,7 +107,7 @@ public class QRoomService:NSObject{
                                 if results != JSON.null{
                                     let comments = json["results"]["comments"].arrayValue
                                     if comments.count > 0 {
-                                        for newComment in comments {
+                                        for newComment in comments.reversed() {
                                             savedRoom.saveOldComment(fromJSON: newComment)
                                         }
                                         DispatchQueue.main.async {
@@ -229,7 +239,7 @@ public class QRoomService:NSObject{
             })
         }
     }
-    public func postComment(onRoom roomId:String, comment:QComment, type:String? = nil, payload:JSON? = nil){
+    public func postComment(onRoom roomId:String, comment:QComment, type:String? = nil, payload:JSON? = nil, onSuccess: @escaping () -> Void = {}){
         var parameters:[String: AnyObject] = [String: AnyObject]()
         let commentUniqueId = comment.uniqueId
         parameters = [
@@ -286,7 +296,7 @@ public class QRoomService:NSObject{
                                 if c.status == QCommentStatus.sending || c.status == QCommentStatus.failed {
                                     room.updateCommentStatus(inComment: c, status: .sent)
                                 }
-                                self.sync(onRoom: room)
+                                self.sync(onRoom: room, notifyUI: room.rawComments.count < 2)
                             }
                         }
                     }else{
@@ -305,6 +315,7 @@ public class QRoomService:NSObject{
                         }
                     }
                 }
+                onSuccess()
                 break
             case .failure(let error):
                 var status = QCommentStatus.failed
@@ -324,9 +335,9 @@ public class QRoomService:NSObject{
                     let realm = try! Realm(configuration: Qiscus.dbConfiguration)
                     realm.refresh()
                     guard let c = realm.resolve(commentTS) else { return }
-                    if let room = QRoom.room(withId: roomId){
-                        room.post(comment: c)
-                    }
+//                    if let room = QRoom.room(withId: roomId){
+//                        room.post(comment: c)
+//                    }
                 })
                 break
             }
@@ -856,7 +867,6 @@ public class QRoomService:NSObject{
             if let response = responseData.result.value{
                 let json = JSON(response)
                 let results = json["results"]
-                print("results: \(results)")
                 let status = json["status"].intValue
                 if results != JSON.null && status == 200{
                     QiscusBackgroundThread.async{
@@ -896,6 +906,92 @@ public class QRoomService:NSObject{
                 }
             }
         })
+    }
+    
+    public class func removeParticipant(onRoom id: String, userIds: [String], onSuccess:@escaping (QRoom)->Void, onError: @escaping ([String], Int?)->Void) {
+        let url = QiscusConfig.REMOVE_ROOM_PARTICIPANT
+        let parameters = [
+            "room_id": id as AnyObject,
+            "emails" : userIds as AnyObject,
+            "token": Qiscus.shared.config.USER_TOKEN as AnyObject
+        ]
+        
+        QiscusService.session.request(url, method: .post, parameters: parameters, encoding: URLEncoding.default, headers: QiscusConfig.sharedInstance.requestHeader).responseJSON { responseData in
+            QiscusBackgroundThread.async {
+                if let response = responseData.result.value{
+                    let json = JSON(response)
+                    let results = json["results"]
+                    
+                    let status = json["status"].intValue
+                    var successUids = [String]()
+                    var errorUids = [String]()
+                    
+                    if results != JSON.null && status == 200{
+                        let service = QRoomService()
+                        if let room = QRoom.threadSaveRoom(withId: id) {
+                            service.sync(onRoom: room, onSuccess: onSuccess)
+                        }
+                    }else{
+                        DispatchQueue.main.async {
+                            onError(userIds,nil)
+                        }
+                    }
+                }else{
+                    if let statusCode = responseData.response?.statusCode {
+                        DispatchQueue.main.async {
+                            onError(userIds,statusCode)
+                        }
+                    }else{
+                        DispatchQueue.main.async {
+                            onError(userIds,nil)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    public class func addParticipant(onRoom id: String, userIds: [String], onSuccess:@escaping (QRoom)->Void, onError: @escaping ([String],Int?)->Void) {
+        let url = QiscusConfig.ADD_ROOM_PARTICIPANT
+        let parameters = [
+            "room_id": id as AnyObject,
+            "emails" : userIds as AnyObject,
+            "token": Qiscus.shared.config.USER_TOKEN as AnyObject
+        ]
+        
+        QiscusService.session.request(url, method: .post, parameters: parameters, encoding: URLEncoding.default, headers: QiscusConfig.sharedInstance.requestHeader).responseJSON { responseData in
+            QiscusBackgroundThread.async {
+                if let response = responseData.result.value{
+                    let json = JSON(response)
+                    let results = json["results"]
+                    
+                    let status = json["status"].intValue
+                    var successUids = [String]()
+                    var errorUids = [String]()
+                    
+                    if results != JSON.null && status == 200{
+                        let service = QRoomService()
+                        if let room = QRoom.threadSaveRoom(withId: id) {
+                            service.sync(onRoom: room, onSuccess: onSuccess)
+                        }
+                    }else{
+                        DispatchQueue.main.async {
+                            onError(userIds,nil)
+                        }
+                    }
+                }else{
+                    if let statusCode = responseData.response?.statusCode {
+                        DispatchQueue.main.async {
+                            onError(userIds,statusCode)
+                        }
+                    }else{
+                        DispatchQueue.main.async {
+                            onError(userIds,nil)
+                        }
+                    }
+                }
+            }
+        }
     }
     
     internal class func delete(messagesWith uniqueIds:[String], forMe:Bool, hardDelete:Bool, onSuccess:@escaping ([String])->Void, onError:@escaping ([String],Int?)->Void){
@@ -968,5 +1064,46 @@ public class QRoomService:NSObject{
                 }
             }
         })
+    }
+    
+    public class func blockUser(sdk_email: String, onSuccess:@escaping ()->Void, onError: @escaping (String)->Void) {
+        let url = QiscusConfig.BLOCK_USER
+        let parameters = [
+            "user_email" : sdk_email as AnyObject,
+            "token": Qiscus.shared.config.USER_TOKEN as AnyObject
+        ]
+        
+        QiscusService.session.request(url, method: .post, parameters: parameters, encoding: URLEncoding.default, headers: QiscusConfig.sharedInstance.requestHeader).responseJSON { responseData in
+            QiscusBackgroundThread.async {
+                if let response = responseData.result.value{
+                    let json = JSON(response)
+                    let results = json["results"]
+                    
+                    let status = json["status"].intValue
+                    var successUids = [String]()
+                    var errorUids = [String]()
+                    
+                    if results != JSON.null && status == 200{
+                        DispatchQueue.main.async {
+                            onSuccess()
+                        }
+                    }else{
+                        DispatchQueue.main.async {
+                            onError("Failed Block User")
+                        }
+                    }
+                }else{
+                    if let statusCode = responseData.response?.statusCode {
+                        DispatchQueue.main.async {
+                            onError("Failed Block User")
+                        }
+                    }else{
+                        DispatchQueue.main.async {
+                            onError("Failed Block User")
+                        }
+                    }
+                }
+            }
+        }
     }
 }

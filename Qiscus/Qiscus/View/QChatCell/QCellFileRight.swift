@@ -33,7 +33,7 @@ class QCellFileRight: QChatCell {
         if let color = self.userNameColor {
             self.userNameLabel.textColor = color
         }
-        userNameLabel.text = "You"
+        userNameLabel.text = "YOU".getLocalize()
         userNameLabel.isHidden = true
         topMargin.constant = 0
         cellHeight.constant = 0

@@ -79,7 +79,10 @@ extension Qiscus:CocoaMQTTDelegate{
                                         let comment = QComment.tempComment(fromJSON: json)
                                         
                                         if let roomDelegate = QiscusCommentClient.shared.roomDelegate {
-                                            roomDelegate.gotNewComment(comment)
+                                            if !comment.isInvalidated{
+                                                 roomDelegate.gotNewComment(comment)
+                                            }
+                                           
                                         }
                                         Qiscus.chatDelegate?.qiscusChat?(gotNewComment: comment)
                                         
@@ -122,13 +125,20 @@ extension Qiscus:CocoaMQTTDelegate{
                             }
                             }}
                     }
-                    if #available(iOS 10.0, *) {
-                        if Qiscus.publishStatustimer != nil {
-                            Qiscus.publishStatustimer?.invalidate()
+                    
+                    let statusObj = ["room_id" : roomId,
+                                     "comment_id": commentId,
+                                     "status": QCommentStatus.delivered
+                        ] as [String : Any]
+                    
+                    if Qiscus.publishStatustimer != nil {
+                        Qiscus.publishStatustimer?.invalidate()
+                    }
+                    
+                    if UIApplication.shared.applicationState == .active {
+                        DispatchQueue.main.async {
+                            Qiscus.publishStatustimer = Timer.scheduledTimer(timeInterval: 1.5, target: self, selector: #selector(self.publishStatus(sender:)), userInfo: statusObj, repeats: false)
                         }
-                        Qiscus.publishStatustimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false, block: { (_) in
-                            QRoom.publishStatus(roomId: roomId, commentId: commentId, status: .delivered)
-                        })
                     } else {
                         QRoom.publishStatus(roomId: roomId, commentId: commentId, status: .delivered)
                     }
@@ -208,15 +218,17 @@ extension Qiscus:CocoaMQTTDelegate{
                 case "s":
                     QiscusBackgroundThread.async {
                         let messageArr = messageData.split(separator: ":")
-                        let userEmail = String(channelArr[1])
-                        let presenceString = String(messageArr[0])
-                        if let rawPresence = Int(presenceString){
-                            if userEmail != Qiscus.client.email{
-                                if let timeToken = Double(String(messageArr[1])){
-                                    if let user = QUser.getUser(email: userEmail){
-                                        user.updateLastSeen(lastSeen: Double(timeToken)/1000)
-                                        let presence = QUserPresence(rawValue: rawPresence)!
-                                        user.updatePresence(presence: presence)
+                        if messageArr.count > 1 {
+                            let userEmail = String(channelArr[1])
+                            let presenceString = String(messageArr[0])
+                            if let rawPresence = Int(presenceString){
+                                if userEmail != Qiscus.client.email{
+                                    if let timeToken = Double(String(messageArr[1])){
+                                        if let user = QUser.getUser(email: userEmail){
+                                            user.updateLastSeen(lastSeen: Double(timeToken)/1000)
+                                            let presence = QUserPresence(rawValue: rawPresence)!
+                                            user.updatePresence(presence: presence)
+                                        }
                                     }
                                 }
                             }
@@ -230,6 +242,18 @@ extension Qiscus:CocoaMQTTDelegate{
             }
             }}
     }
+    
+    @objc func publishStatus(sender: Timer) {
+        let userInfo = sender.userInfo! as! [String: Any]
+        let roomId = userInfo["room_id"] as! String
+        let commentId = userInfo["comment_id"] as! Int
+        let status = userInfo["status"] as! QCommentStatus
+
+        DispatchQueue.global(qos: .background).async {
+            QRoom.publishStatus(roomId: roomId, commentId: commentId, status: status)
+        }
+    }
+    
     public func mqtt(_ mqtt: CocoaMQTT, didSubscribeTopic topic: String){
         if !Qiscus.realtimeChannel.contains(topic) {
             Qiscus.printLog(text: "new realtime channel : \(topic) subscribed")

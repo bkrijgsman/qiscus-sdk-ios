@@ -25,7 +25,7 @@ var QiscusDBThread = DispatchQueue(label: "com.qiscus.db", attributes: .concurre
     static let sharedInstance = Qiscus()
 
     
-    static let qiscusVersionNumber:String = "2.8.11"
+    static let qiscusVersionNumber:String = "2.8.23"
     public static var client : QiscusClient {
         get { return QiscusClient.shared }
     }
@@ -61,6 +61,8 @@ var QiscusDBThread = DispatchQueue(label: "com.qiscus.db", attributes: .concurre
      ```
      */
     public static var chatDelegate:QiscusChatDelegate?
+    
+    public static var disableLocalization: Bool = false
     
     /**
      Setup maximum size when you send attachment inside chat view, example send video/image from galery. By default maximum size is unlimited.
@@ -622,9 +624,9 @@ var QiscusDBThread = DispatchQueue(label: "com.qiscus.db", attributes: .concurre
     
     
     public class func printLog(text:String){
-        print(text)
         if Qiscus.showDebugPrint{
             let logText = "[Qiscus]: \(text)"
+            print(logText)
             DispatchQueue.global().sync{
                 if Qiscus.saveLog {
                     let date = Date()
@@ -828,6 +830,8 @@ var QiscusDBThread = DispatchQueue(label: "com.qiscus.db", attributes: .concurre
             }else{
                 localNotification.alertBody = comment.text
             }
+            
+            localNotification.soundName = "default"
             var userData = [AnyHashable : Any]()
             
             if userInfo != nil {
@@ -1032,5 +1036,37 @@ var QiscusDBThread = DispatchQueue(label: "com.qiscus.db", attributes: .concurre
         }) { (error) in
             onError(error)
         }
+    }
+    
+    
+    /// add participants to room
+    ///
+    /// - Parameters:
+    ///   - id: room id
+    ///   - userIds: array of participant user id registered in qiscus sdk
+    ///   - onSuccess: completion when successfully add participant
+    ///   - onError: completion when failed add participant
+    public class func addParticipant(onRoomId id: String, userIds: [String], onSuccess:@escaping (QRoom)->Void, onError: @escaping ([String],Int?)->Void) {
+        QRoomService.addParticipant(onRoom: id, userIds: userIds, onSuccess: onSuccess, onError: onError)
+        
+    }
+    
+    
+    /// remove participants from room
+    ///
+    /// - Parameters:
+    ///   - id: room id
+    ///   - userIds: array of participant user id registered in qiscus sdk
+    ///   - onSuccess: completion when failed delete participant
+    ///   - onError: completion when failed delete participant
+    public class func removeParticipant(onRoom id: String, userIds: [String], onSuccess:@escaping (QRoom)->Void, onError: @escaping ([String],Int?)->Void) {
+        QRoomService.removeParticipant(onRoom: id, userIds: userIds, onSuccess: onSuccess, onError: onError)
+    }
+    
+    /// block user
+    /// - Parameters:
+    ///   - user_email
+    public class func blockUser(user_email: String, onSuccess:@escaping()->Void, onError: @escaping (String)->Void) {
+        QRoomService.blockUser(sdk_email: user_email, onSuccess: onSuccess, onError: onError)
     }
 }

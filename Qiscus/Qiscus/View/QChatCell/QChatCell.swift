@@ -182,7 +182,7 @@ open class QChatCell: UICollectionViewCell, QCommentDelegate {
                                 }
                             }
                         }, onError: { (statusCode) in
-                            print("delete error: status code \(String(describing: statusCode))")
+                            Qiscus.printLog(text: "delete error: status code \(String(describing: statusCode))")
                         })
                     }
                 }
@@ -225,7 +225,7 @@ open class QChatCell: UICollectionViewCell, QCommentDelegate {
                                 }
                             }
                         }, onError: { (statusCode) in
-                            print("delete error: status code \(statusCode)")
+                            Qiscus.printLog(text: "delete error: status code \(statusCode)")
                         })
                     }
                 }
@@ -334,13 +334,20 @@ open class QChatCell: UICollectionViewCell, QCommentDelegate {
                 oldUniqueId = oldComment.uniqueId
             }
         }
-        if let cache = QComment.cache[comment.uniqueId]{
-            self.commentRaw = cache
-        }else{
-            QComment.cache[comment.uniqueId] = comment
-            self.commentRaw = comment
+        
+        if !comment.isInvalidated {
+            if let cache = QComment.cache[comment.uniqueId]{
+                self.commentRaw = cache
+            }else{
+                QComment.cache[comment.uniqueId] = comment
+                self.commentRaw = comment
+            }
         }
-        self.comment!.delegate = self
+        
+        if let selfComment = self.comment {
+            selfComment.delegate = self
+        }
+        
         if let uId = oldUniqueId {
             if uId != comment.uniqueId {
                 self.commentChanged()
@@ -350,13 +357,13 @@ open class QChatCell: UICollectionViewCell, QCommentDelegate {
         }
         var menuItems: [UIMenuItem] = [UIMenuItem]()
         
-        let resendMenuItem: UIMenuItem = UIMenuItem(title: "Resend", action: #selector(QChatCell.resend))
-        let deleteMenuItem: UIMenuItem = UIMenuItem(title: "Delete", action: #selector(QChatCell.deleteComment))
-        let deleteForMeMenuItem: UIMenuItem = UIMenuItem(title: "Delete For Me", action: #selector(QChatCell.deleteForMe))
-        let replyMenuItem: UIMenuItem = UIMenuItem(title: "Reply", action: #selector(QChatCell.reply))
-        let forwardMenuItem: UIMenuItem = UIMenuItem(title: "Forward", action: #selector(QChatCell.forward))
-        let shareMenuItem: UIMenuItem = UIMenuItem(title: "Share", action: #selector(QChatCell.share))
-        let infoMenuItem: UIMenuItem = UIMenuItem(title: "Info", action: #selector(QChatCell.info))
+        let resendMenuItem: UIMenuItem = UIMenuItem(title: "RESEND".getLocalize(), action: #selector(QChatCell.resend))
+        let deleteMenuItem: UIMenuItem = UIMenuItem(title: "DELETE".getLocalize(), action: #selector(QChatCell.deleteComment))
+        let deleteForMeMenuItem: UIMenuItem = UIMenuItem(title: "DELETE_FOR_ME".getLocalize(), action: #selector(QChatCell.deleteForMe))
+        let replyMenuItem: UIMenuItem = UIMenuItem(title: "REPLY".getLocalize(), action: #selector(QChatCell.reply))
+        let forwardMenuItem: UIMenuItem = UIMenuItem(title: "FORWARD".getLocalize(), action: #selector(QChatCell.forward))
+        let shareMenuItem: UIMenuItem = UIMenuItem(title: "SHARE".getLocalize(), action: #selector(QChatCell.share))
+        let infoMenuItem: UIMenuItem = UIMenuItem(title: "INFO".getLocalize(), action: #selector(QChatCell.info))
         
         if let isEnable = delegate?.enableReplyMenuItem?(onCell: self) {
             if isEnable {

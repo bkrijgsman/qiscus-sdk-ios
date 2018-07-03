@@ -93,7 +93,7 @@ class QCellDocRight: QChatCell {
                 })
             }
             if self.showUserName{
-                self.userNameLabel.text = "You"
+                self.userNameLabel.text = "YOU".getLocalize()
                 self.userNameLabel.isHidden = false
                 self.topMargin.constant = 20
                 self.cellHeight.constant = 20

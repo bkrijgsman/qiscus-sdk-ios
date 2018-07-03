@@ -80,7 +80,7 @@ extension QConversationCollectionView: QRoomDelegate {
     }
     
     public func room(gotNewComment comment: QComment) {
-        print("gotNewComment::")
+        Qiscus.printLog(text: "gotNewComment::")
     }
     
     public func room(didDeleteComment room:QRoom) {

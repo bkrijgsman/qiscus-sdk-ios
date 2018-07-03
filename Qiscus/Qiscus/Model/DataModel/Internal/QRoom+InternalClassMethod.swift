@@ -13,7 +13,7 @@ internal extension QRoom {
     internal class func allRoom()->[QRoom]{
         let realm = try! Realm(configuration: Qiscus.dbConfiguration)
         realm.refresh()
-        let data = realm.objects(QRoom.self).sorted(byKeyPath: "pinned", ascending: false).sorted(byKeyPath: "lastCommentCreatedAt", ascending: false)
+        let data = realm.objects(QRoom.self).sorted(byKeyPath: "lastCommentCreatedAt", ascending: false)
         
         if data.count > 0 {
             return Array(data)

@@ -57,6 +57,10 @@ open class QRoomListCell: UITableViewCell {
 
         // Configure the view for the selected state
     }
+    
+    /**
+    Config Custom Cell
+    */
     open func setupUI(){}
     
     

@@ -84,7 +84,7 @@ class QCellDeletedRight: QChatCell {
         
         // first cell
         if self.showUserName{
-            self.userNameLabel.text = "You"
+            self.userNameLabel.text = "YOU".getLocalize()
             self.userNameLabel.isHidden = false
             self.balloonTopMargin.constant = 20
             self.cellHeight.constant = 20

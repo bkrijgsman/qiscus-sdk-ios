@@ -424,7 +424,7 @@ internal extension QRoom {
         }
     }
     // MARK: - Public Object method
-    internal func syncRoomData(withJSON json:JSON){
+    internal func syncRoomData(withJSON json:JSON, onSuccess: @escaping ((QRoom)->Void) = {_ in }){
         let id = self.id
         QiscusDBThread.async {
             if let room = QRoom.threadSaveRoom(withId: id) {
@@ -599,6 +599,7 @@ internal extension QRoom {
                         room.checkCommentStatus()
                     }
                 }
+                onSuccess(room)
             }
         }
     }
@@ -846,7 +847,7 @@ internal extension QRoom {
     internal func saveNewComment(fromJSON json:JSON){
         let roomId = self.id
         
-        QiscusDBThread.sync {
+        QiscusDBThread.async {
             if let room = QRoom.threadSaveRoom(withId:  roomId){
                 let realm = try! Realm(configuration: Qiscus.dbConfiguration)
                 realm.refresh()
@@ -911,7 +912,7 @@ internal extension QRoom {
                     }
                 }
                 else{
-                    self.addComment(newComment: newComment, onTop: true)
+                    self.addComment(newComment: newComment, onTop: false)
                 }
             }
         }
@@ -975,7 +976,7 @@ internal extension QRoom {
             }
         }
         let filteredComments = self.comments(withFilter: filter)
-        for comment in  filteredComments{
+        for comment in filteredComments{
             
             if !comment.isInvalidated {
                 if !uidList.contains(comment.uniqueId) {
@@ -1006,6 +1007,7 @@ internal extension QRoom {
             }
             count += 1
         }
+        
         return retVal
     }
 }

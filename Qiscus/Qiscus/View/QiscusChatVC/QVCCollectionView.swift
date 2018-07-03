@@ -14,7 +14,7 @@ extension QiscusChatVC: QConversationViewConfigurationDelegate {
         if let config = self.configDelegate?.chatVCConfigDelegate?(usingTypingCell: self){
             return config
         }
-        return true
+        return false
     }
     public func configDelegate(userNameLabelColor collectionView:QConversationCollectionView, forUser user:QUser)->UIColor?{
         if let config = self.configDelegate{
@@ -205,14 +205,14 @@ extension QiscusChatVC: QConversationViewDelegate {
                         let rid = room.id
                         QiscusBackgroundThread.async {
                             if let rts = QRoom.threadSaveRoom(withId: rid){
-                                rts.readAll()
+//                                rts.readAll()
                             }
                         }
                     }
                 }
             })
         }else{
-            self.welcomeView.isHidden = false
+            self.welcomeView.isHidden = true
             self.collectionView.isHidden = true
             self.dismissLoading()
         }

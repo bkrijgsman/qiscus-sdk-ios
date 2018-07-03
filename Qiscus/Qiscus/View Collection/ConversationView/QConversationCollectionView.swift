@@ -12,13 +12,14 @@ import AVFoundation
 
 public class QConversationCollectionView: UICollectionView {
     public var room:QRoom? {
-        didSet{
+        didSet {
             var oldRoomId = "0"
             if let oldRoom = oldValue {
 //                oldRoom.delegate = nil
                 oldRoomId = oldRoom.id
             }
             if let r = room {
+                self.comments = QComment.comments(onRoom: r.id)
                 let rid = r.id
                 if rid != oldRoomId {
                     Qiscus.chatRooms[r.id] = r
@@ -53,6 +54,29 @@ public class QConversationCollectionView: UICollectionView {
                             rts.sync()
                         }
                     }
+                } else {
+                    var hardDelete = false
+                    if let softDelete = self.viewDelegate?.viewDelegate?(usingSoftDeleteOnView: self){
+                        hardDelete = !softDelete
+                    }
+                    var predicate:NSPredicate?
+                    if hardDelete {
+                        predicate = NSPredicate(format: "statusRaw != %d AND statusRaw != %d", QCommentStatus.deleted.rawValue, QCommentStatus.deleting.rawValue)
+                    }
+                    QiscusBackgroundThread.async {
+                        if let rts = QRoom.threadSaveRoom(withId: rid){
+                            var messages = rts.grouppedCommentsUID(filter: predicate)
+                            messages = self.checkHiddenMessage(messages: messages)
+                            
+                            DispatchQueue.main.async {
+                                self.messagesId = messages
+                                self.reloadData()
+                            }
+                            rts.resendPendingMessage()
+                            rts.redeletePendingDeletedMessage()
+                            rts.sync()
+                        }
+                    }
                 }
             }else{
                 self.messagesId = [[String]]()
@@ -65,6 +89,9 @@ public class QConversationCollectionView: UICollectionView {
             }
         }
     }
+    
+    public var comments: [QComment] = []
+    
     public var typingUsers = [String:QUser]()
     
     public var viewDelegate:QConversationViewDelegate?
@@ -81,6 +108,10 @@ public class QConversationCollectionView: UICollectionView {
     public var messagesId = [[String]](){
         didSet{
             DispatchQueue.main.async {
+                if let r = self.room {
+                    self.comments = QComment.comments(onRoom: r.id)
+                }
+                
                 if oldValue.count == 0 {
                     self.layoutIfNeeded()
                     self.scrollToBottom()
@@ -91,6 +122,9 @@ public class QConversationCollectionView: UICollectionView {
     }
     internal var loadingMore = false
     internal var targetIndexPath:IndexPath?
+    internal var userTypingEmail: String = ""
+    internal var isTyping: Bool = false
+    internal var cacheCellSize: [String: CGSize] = [:]
     
     var isLastRowVisible: Bool = false
     
@@ -152,7 +186,7 @@ public class QConversationCollectionView: UICollectionView {
     }
     public func subscribeEvent(roomId: String){
         let center: NotificationCenter = NotificationCenter.default
-        var usingTypingCell = true
+        var usingTypingCell = false
         if let config = self.configDelegate?.configDelegate?(usingTpingCellIndicator: self){
             usingTypingCell = config
         }
@@ -168,7 +202,7 @@ public class QConversationCollectionView: UICollectionView {
     public func unsubscribeEvent(roomId:String){
         let center: NotificationCenter = NotificationCenter.default
         
-        var usingTypingCell = true
+        var usingTypingCell = false
         if let config = self.configDelegate?.configDelegate?(usingTpingCellIndicator: self){
             usingTypingCell = config
         }
@@ -214,7 +248,6 @@ public class QConversationCollectionView: UICollectionView {
             predicate = NSPredicate(format: "statusRaw != %d AND statusRaw != %d", QCommentStatus.deleted.rawValue, QCommentStatus.deleting.rawValue)
         }
         
-        
         QiscusBackgroundThread.async {
             if let rts = QRoom.threadSaveRoom(withId: rid){
                 var messages = rts.grouppedCommentsUID(filter: predicate)
@@ -237,11 +270,16 @@ public class QConversationCollectionView: UICollectionView {
                 
                 if changed {
                     DispatchQueue.main.async {
-                        self.messagesId = messages
-                        self.reloadData()
-                        if comment.senderEmail == Qiscus.client.email || self.isLastRowVisible {
+                        
+                        if comment.isInvalidated {return}
+                        if comment.senderEmail == Qiscus.client.email || !self.isLastRowVisible {
                             self.layoutIfNeeded()
                             self.scrollToBottom(true)
+                        } else {
+                            self.messagesId = messages
+                            self.reloadData()
+                            
+                            if self.isLastRowVisible {self.scrollToBottom(true)}
                         }
                     }
                 }
@@ -250,12 +288,21 @@ public class QConversationCollectionView: UICollectionView {
     }
     open func userTypingChanged(userEmail: String, typing:Bool){
         self.processingTyping = true
+        self.userTypingEmail = userEmail
+        self.isTyping = typing
+        
         if self.messagesId.count <= 0 { return }
+        
+        NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(self.proccessTyping), object: nil)
+        self.perform(#selector(self.proccessTyping), with: nil, afterDelay: 0.5)
+    }
+    
+    @objc private func proccessTyping() {
         let section = self.messagesId.count - 1
         QiscusBackgroundThread.sync {
-            if !typing {
-                if self.typingUsers[userEmail] != nil {
-                    self.typingUsers[userEmail] = nil
+            if !isTyping {
+                if self.typingUsers[self.userTypingEmail] != nil {
+                    self.typingUsers[self.userTypingEmail] = nil
                     if self.typingUsers.count > 0 {
                         let typingIndexPath = IndexPath(item: 0, section: section + 1)
                         DispatchQueue.main.async {
@@ -263,40 +310,13 @@ public class QConversationCollectionView: UICollectionView {
                         }
                     }else{
                         DispatchQueue.main.async {
-                            self.performBatchUpdates({
-                                let indexSet = IndexSet(integer: section + 1)
-                                self.deleteSections(indexSet)
-                            }, completion: { (_) in
-                                if self.isLastRowVisible{
-                                    self.scrollToBottom()
-                                }
-                            })
-                        }
-                    }
-                    if let timer = self.typingUserTimer[userEmail] {
-                        timer.invalidate()
-                        self.typingUserTimer[userEmail] = nil
-                    }
-                }
-            }else{
-                let typingIndexPath = IndexPath(item: 0, section: section + 1)
-                
-                if self.typingUsers[userEmail] == nil {
-                    if self.typingUsers.count > 0 {
-                        DispatchQueue.main.async {
-                            if let user = QUser.user(withEmail: userEmail) {
-                                self.typingUsers[userEmail] = user
-                                self.reloadItems(at: [typingIndexPath])
-                            }
-                        }
-                    }else{
-                        DispatchQueue.main.async {
-                            if let user = QUser.user(withEmail: userEmail) {
+                            if !self.isHidden {
                                 self.performBatchUpdates({
                                     let indexSet = IndexSet(integer: section + 1)
-                                    self.typingUsers[userEmail] = user
-                                    self.insertSections(indexSet)
-                                    self.insertItems(at: [typingIndexPath])
+                                    
+                                    if self.numberOfSections > (section + 1)  {
+                                        self.deleteSections(indexSet)
+                                    }
                                 }, completion: { (_) in
                                     if self.isLastRowVisible{
                                         self.scrollToBottom()
@@ -305,24 +325,60 @@ public class QConversationCollectionView: UICollectionView {
                             }
                         }
                     }
+                    if let timer = self.typingUserTimer[self.userTypingEmail] {
+                        timer.invalidate()
+                        self.typingUserTimer[self.userTypingEmail] = nil
+                    }
                 }
-                if let timer = self.typingUserTimer[userEmail] {
+            }else{
+                let typingIndexPath = IndexPath(item: 0, section: section + 1)
+                
+                if self.typingUsers[self.userTypingEmail] == nil {
+                    if self.typingUsers.count > 0 {
+                        DispatchQueue.main.async {
+                            if let user = QUser.user(withEmail: self.userTypingEmail) {
+                                self.typingUsers[self.userTypingEmail] = user
+                                self.reloadItems(at: [typingIndexPath])
+                            }
+                        }
+                    }else{
+                        DispatchQueue.main.async {
+                            if let user = QUser.user(withEmail: self.userTypingEmail) {
+                                self.typingUsers[self.userTypingEmail] = user
+                                if !self.isHidden {
+                                    let indexSet = IndexSet(integer: section + 1)
+                                    
+                                    self.performBatchUpdates({
+                                        self.insertSections(indexSet)
+                                        self.insertItems(at: [typingIndexPath])
+                                    }, completion: { (_) in
+                                        if self.isLastRowVisible{
+                                            self.scrollToBottom()
+                                        }
+                                    })
+                                }
+                            }
+                        }
+                    }
+                }
+                if let timer = self.typingUserTimer[self.userTypingEmail] {
                     timer.invalidate()
                 }
                 DispatchQueue.main.async {
-                    if let user = QUser.user(withEmail: userEmail) {
-                        self.typingUserTimer[userEmail] = Timer.scheduledTimer(timeInterval: 3.0, target: self, selector: #selector(QConversationCollectionView.publishStopTyping(timer:)), userInfo: user, repeats: false)
+                    if let user = QUser.user(withEmail: self.userTypingEmail) {
+                        self.typingUserTimer[self.userTypingEmail] = Timer.scheduledTimer(timeInterval: 3.0, target: self, selector: #selector(QConversationCollectionView.publishStopTyping(timer:)), userInfo: user, repeats: false)
                     }
                 }
             }
         }
         self.processingTyping = false
+        
     }
     
     
     // MARK: - Notification Listener
     @objc private func userTyping(_ notification: Notification){
-        var usingCellTyping = true
+        var usingCellTyping = false
         if let config = self.configDelegate?.configDelegate?(usingTpingCellIndicator: self){
             usingCellTyping = config
         }
@@ -333,14 +389,14 @@ public class QConversationCollectionView: UICollectionView {
             guard let room = userInfo["room"] as? QRoom else {return}
             guard let currentRoom = self.room else {return}
             
+            if room.isInvalidated || user.isInvalidated || currentRoom.isInvalidated{
+                return
+            }
+            
             let userEmail = user.email
             let roomId = room.id
             
             if currentRoom.id != roomId { return }
-            
-            if room.isInvalidated || user.isInvalidated || currentRoom.isInvalidated{
-                return
-            }
             
             if self.processingTyping { return }
             
@@ -548,6 +604,10 @@ public class QConversationCollectionView: UICollectionView {
             }
         }
     }
+    override public func reloadData() {
+        super.reloadData()
+    }
+    
     public func refreshData(withCompletion completion: (()->Void)? = nil){
         if let room = self.room {
             let rid = room.id

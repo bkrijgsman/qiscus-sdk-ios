@@ -80,6 +80,7 @@ public class QRoom:Object {
     @objc internal dynamic var roomVersion017:Bool = true
     
     internal let rawComments = List<QComment>()
+    internal let service = QRoomService()
     
     public var comments:[QComment]{
         get{
@@ -528,10 +529,11 @@ public class QRoom:Object {
     internal func resendPendingMessage(){
         let id = self.id
         let pendingMessages = self.rawComments.filter("statusRaw == %d", QCommentStatus.pending.rawValue)
-        let service = QRoomService()
         if pendingMessages.count > 0 {
-            for pendingMessage in pendingMessages {
-                service.postComment(onRoom: id, comment: pendingMessage)
+            if let pendingMessage = pendingMessages.first {
+                service.postComment(onRoom: id, comment: pendingMessage) {
+                    self.resendPendingMessage()
+                }
             }
         }
     }
@@ -551,12 +553,12 @@ public class QRoom:Object {
         }
     }
     
-    public func post(comment:QComment, type:String? = nil, payload:JSON? = nil){
+    public func post(comment:QComment, type:String? = nil, payload:JSON? = nil, onSuccess: @escaping ()->Void = {}){
         let service = QRoomService()
         let id = self.id
-        self.resendPendingMessage()
+//        self.resendPendingMessage()
         self.redeletePendingDeletedMessage()
-        service.postComment(onRoom: id, comment: comment, type: type, payload:payload)
+        service.postComment(onRoom: id, comment: comment, type: type, payload:payload, onSuccess: onSuccess)
     }
     
     public func upload(comment:QComment, onSuccess:  @escaping (QRoom, QComment)->Void, onError:  @escaping (QRoom,QComment,String)->Void, onProgress:((Double)->Void)? = nil){
@@ -1076,6 +1078,40 @@ public class QRoom:Object {
             onError(statusCode)
         }
     }
+    
+    internal func clearRemain30() {
+        if self.rawComments.count > 30 {
+            let id = self.id
+            let realm = try! Realm(configuration: Qiscus.dbConfiguration)
+            
+            let tempRawComment = List<QComment>()
+            let commentToDelete = List<QComment>()
+            
+            var iteration = 0
+            
+            for rawComment in self.rawComments.sorted(by: { (q1, q2) -> Bool in
+                return q1.createdAt < q2.createdAt
+                }).reversed() {
+                if iteration < 30 {
+                    tempRawComment.insert(rawComment, at: 0)
+                } else {
+                    QComment.cache.removeValue(forKey: rawComment.uniqueId)
+                    commentToDelete.insert(rawComment, at: 0)
+                }
+                
+                iteration += 1
+            }
+            
+            try! realm.write {
+                realm.delete(commentToDelete)
+                self.rawComments.removeAll()
+                tempRawComment.last?.beforeId = 0
+                realm.add(tempRawComment, update: true)
+                self.rawComments.append(objectsIn: tempRawComment)
+            }
+        }
+    }
+    
     internal func clearMessage(){
         let id = self.id
         let realm = try! Realm(configuration: Qiscus.dbConfiguration)

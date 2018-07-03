@@ -11,6 +11,7 @@
     <objects>
         <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner" customClass="QiscusUploaderVC" customModule="Qiscus" customModuleProvider="target">
             <connections>
+                <outlet property="cancelButton" destination="v7d-tL-Rht" id="sxF-kS-Nte"/>
                 <outlet property="deleteButton" destination="B6N-6j-PNI" id="AtG-EO-M2K"/>
                 <outlet property="imageCollection" destination="AwI-dX-FnG" id="q0b-8v-1vs"/>
                 <outlet property="imageView" destination="Lhw-an-yNz" id="uTt-Sg-HAL"/>

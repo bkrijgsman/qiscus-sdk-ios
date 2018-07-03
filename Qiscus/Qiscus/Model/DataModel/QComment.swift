@@ -312,6 +312,7 @@ public class QComment:Object {
         get {
             let date = Date(timeIntervalSince1970: self.createdAt)
             let timeFormatter = DateFormatter()
+            timeFormatter.timeZone = NSTimeZone.local
             timeFormatter.dateFormat = "h:mm a"
             let timeString = timeFormatter.string(from: date)
             
@@ -323,6 +324,7 @@ public class QComment:Object {
         var recalculate = false
         
         func recalculateSize()->CGSize{
+            if self.isInvalidated {return CGSize()}
             let textView = UITextView()
             textView.font = Qiscus.style.chatFont
             if self.type == .carousel {
@@ -407,6 +409,7 @@ public class QComment:Object {
         }
         let realm = try! Realm(configuration: Qiscus.dbConfiguration)
         realm.refresh()
+        if self.isInvalidated {return CGSize()}
         if Float(Qiscus.style.chatFont.pointSize) != self.textFontSize || Qiscus.style.chatFont.familyName != self.textFontName{
             if self.type != .card && self.type != .carousel {
                 recalculate = true
@@ -536,6 +539,16 @@ public class QComment:Object {
         }
         return nil
     }
+    
+    public class func comments(onRoom roomId: String) -> [QComment] {
+        let realm = try! Realm(configuration: Qiscus.dbConfiguration)
+        realm.refresh()
+        
+        let comments = realm.objects(QComment.self).filter("roomId == '\(roomId)'")
+        
+        return Array(comments)
+    }
+    
     public class func comment(withUniqueId uniqueId:String)->QComment?{
         if Thread.isMainThread {
             let realm = try! Realm(configuration: Qiscus.dbConfiguration)
@@ -973,20 +986,26 @@ public class QComment:Object {
         return nil
     }
     public func read(check:Bool = true){
+        if self.isInvalidated {return}
         let uniqueId = self.uniqueId
         if self.isRead {return}
         QiscusDBThread.async {
             if let comment = QComment.threadSaveComment(withUniqueId: uniqueId){
+                if comment.isInvalidated {return}
                 let realm = try! Realm(configuration: Qiscus.dbConfiguration)
                 realm.refresh()
                 try! realm.write {
-                    comment.isRead = true
+                    if !comment.isInvalidated {
+                        comment.isRead = true
+                    }
                 }
                 if check {
                     let data = realm.objects(QComment.self).filter("isRead == false AND createdAt < \(comment.createdAt) AND roomId == '\(comment.roomId)'")
                     for olderComment in data {
                         try! realm.write {
-                            olderComment.isRead = true
+                            if !olderComment.isInvalidated {
+                                olderComment.isRead = true
+                            }
                         }
                     }
                 }
@@ -1270,22 +1289,24 @@ public class QComment:Object {
             realm.refresh()
             let data = realm.objects(QComment.self).filter("statusRaw == 1")
             
-            if data.count > 0 {
-                for comment in data {
-                    if Thread.isMainThread {
-                        if let room = QRoom.room(withId: comment.roomId){
-                            room.updateCommentStatus(inComment: comment, status: .sending)
-                            room.post(comment: comment)
+            if let comment = data.first {
+                if Thread.isMainThread {
+                    if let room = QRoom.room(withId: comment.roomId){
+                        room.updateCommentStatus(inComment: comment, status: .sending)
+                        room.post(comment: comment) {
+                            self.resendPendingMessage()
                         }
-                    }else{
-                        let commentTS = ThreadSafeReference(to: comment)
-                        DispatchQueue.main.sync {
-                            let realm = try! Realm(configuration: Qiscus.dbConfiguration)
-                            realm.refresh()
-                            guard let c = realm.resolve(commentTS) else { return }
-                            if let room = QRoom.room(withId: c.roomId){
-                                room.updateCommentStatus(inComment: c, status: .sending)
-                                room.post(comment: c)
+                    }
+                }else{
+                    let commentTS = ThreadSafeReference(to: comment)
+                    DispatchQueue.main.sync {
+                        let realm = try! Realm(configuration: Qiscus.dbConfiguration)
+                        realm.refresh()
+                        guard let c = realm.resolve(commentTS) else { return }
+                        if let room = QRoom.room(withId: c.roomId){
+                            room.updateCommentStatus(inComment: c, status: .sending)
+                            room.post(comment: c) {
+                                self.resendPendingMessage()
                             }
                         }
                     }

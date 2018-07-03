@@ -85,7 +85,7 @@ class QCellAudioRight: QCellAudio {
         self.durationLabel.text = self.comment!.durationLabel
         
         if self.showUserName{
-            userNameLabel.text = "You"
+            userNameLabel.text = "YOU".getLocalize()
             userNameLabel.isHidden = false
             balloonTopMargin.constant = 20
             cellHeight.constant = 20

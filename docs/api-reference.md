@@ -1,10 +1,10 @@
-# List of Function API v2 iOS
+# IOS SDK API Reference
 
-## Setup
+## Init
 
-### Init *AppId *
+### Using App ID
 
-client side will call 
+Client side call this function.
 
 ```
 import Qiscus
@@ -18,20 +18,7 @@ Qiscus.setup( withAppId: "app_id",
             )
 ```
 
-Sample usage in client side will be something like this : 
-
-```
-import Qiscus
-
-Qiscus.setup( withAppId: "sampleapp-65ghcsaysse",
-                          userEmail: "abcde1234@qiscus.com",
-                          userKey: "abcde1234",
-                          username: "steve Kusuma",
-                          avatarURL: "",
-                          delegate: self)
-```
-
-Listen callback from delegate 
+Listen callback from delegate.
 
 ```
 extension LoginVC : QiscusConfigDelegate{
@@ -45,7 +32,7 @@ extension LoginVC : QiscusConfigDelegate{
 }
 ```
 
-### init *AppId *using custom server
+### Using custom server
 
 ```
 import Qiscus
@@ -54,11 +41,9 @@ Qiscus.setBaseURL("Your Constom URL")
 Qiscus.setRealtimeServer(server : "Your URL", port : "Your port",enableSSL : true/false)
 ```
 
+## Authentication
 
-
-## User
-
-### Authentication with UserID & UserKey
+### Using `UserID` and `UserKey`
 
 ```
 import Qiscus
@@ -72,10 +57,9 @@ Qiscus.setup( withAppId: "app_id",
             )
 ```
 
-### Authentication with JWT
+### Using JWT
 
-client side will call getNonce
-
+Client side call this function.
 
 ```
 import Qiscus
@@ -87,9 +71,7 @@ Qiscus.getNonce(withAppId: "APP_ID", onSuccess: { (nonce) in
 })
 ```
 
-
-client side will verify the Identity Token and setup object
-
+Verify the Identity Token and call this setup function.
 
 ```
 import Qiscus
@@ -97,9 +79,7 @@ import Qiscus
 Qiscus.setup(withUserIdentityToken: "IDENTITY_TOKEN")
 ```
 
-
-Sample usage in client side will be something like this :
-
+Sample usage.
 
 ```
 import Qiscus
@@ -125,9 +105,9 @@ Qiscus.getNonce(withAppId: YOUR_APP_ID, onSuccess: { (nonce) in
 })
 ```
 
+## User
 
-
-### Updating a user profile and profile image
+### Update User Profile And Profile Image
 
 ```
 Qiscus.updateProfile(username: username, avatarURL: avatar, onSuccess: { 
@@ -137,13 +117,13 @@ Qiscus.updateProfile(username: username, avatarURL: avatar, onSuccess: {
         }
 ```
 
-### check is user logged in
+### Login Status
 
 ```
-Qiscus.isLoggedIn // BOOL can be true or false
+Qiscus.isLoggedIn // return true or false
 ```
 
-### logout user
+### Logout
 
 ```
 Qiscus.clear()
@@ -151,18 +131,14 @@ Qiscus.clear()
 
 ## Message
 
-### send message (with various type of payloads)
-
-* new text comment:
+### Send Text Message
 
 ```
- let comment = room.newComment(text: value) //create new text message on room
- room.post(comment: comment) //post message on room
+ let comment = room.newComment(text: value) // create new text message on room
+ room.post(comment: comment) // post message on room
 ```
 
-
-
-* new file comment / upload media
+### Send File Attachment
 
 ```
 let comment = room.newFileComment(type: .image, filename: fileName, data: data)
@@ -176,10 +152,9 @@ room.upload(comment: comment, onSuccess: { (roomResult, commentResult) in
         }) { (progress) in
             // progress value will be from 0.00 to 1.00
         }
-        
 ```
 
-Example : 
+Example.
 
 ```
 let image = UIImage(named: "abc") // assuming you have file abc locally
@@ -197,21 +172,21 @@ room.upload(comment: comment, onSuccess: { (roomResult, commentResult) in
 }
 ```
 
-* new custom payload comment:
+### Send Custom Message
 
 ```
- let comment = room.newCustomComment(text: value, type: .custom, payload:payload) //create new custom message on room
- room.post(comment: comment) //post message on room
+let comment = room.newCustomComment(text: value, type: .custom, payload:payload) //create new custom message on room
+room.post(comment: comment) //post message on room
 ```
 
-Example : 
+Example.
 
 ```
 let comment = room.newCustomComment(type: "custom", payload: "{ \"key\": \"value\"}", text: "THIS IS CUSTOM MESSAGE")
 room.post(comment: comment)
 ```
 
-### load messages (with limit and offset)
+### Load Messages
 
 ```
 // offset can be taken from comment.messageId
@@ -223,7 +198,7 @@ room.loadComments(limit: 20, offset: "12345", onSuccess: { (comments) in
         }
 ```
 
-### load more (with limit and offset)
+### Load More
 
 ```
 // offset can be taken from comment.messageId
@@ -236,10 +211,9 @@ room.loadMore(limit: 20, offset: "12345", onSuccess: { (comments, hasMoreMessage
 }
 ```
 
-### download media (the path and % process)
+### Download Media
 
 ```
-
 room.downloadMedia(onComment: comment, onSuccess: { (commentResult) in
             <#code#>
             print(commentResult.file.localPath)
@@ -250,10 +224,10 @@ room.downloadMedia(onComment: comment, onSuccess: { (commentResult) in
         }
 ```
 
-### Keyword search
+### Search Message
 
 ```
-        QChatService.searchComment(withQuery: (self.searchViewController?.searchBar.text)!, onSuccess: { (comments) in
+QChatService.searchComment(withQuery: (self.searchViewController?.searchBar.text)!, onSuccess: { (comments) in
             self.filteredComments = comments
             self.tableView.reloadData()
             print("success search comment with result:\n\(comments)")
@@ -262,12 +236,38 @@ room.downloadMedia(onComment: comment, onSuccess: { (commentResult) in
         })
 ```
 
+### Delete Message
 
+To delete one message, we have to provide data QComment.
 
+```
+let deletecomment = self.room!.comments[index.row]
+```
+
+Delete with this function.
+
+```
+deletecomment.delete(forMeOnly: false, hardDelete: true, onSuccess: {
+                print("success")
+            }, onError: { (statusCode) in
+                print("delete error: status code \(statusCode)")
+            })
+```
+
+### Delete All Messages
+
+```
+var room:QRoom?
+self.room?.clearMessages(onSuccess: {
+                print("success")
+            }, onError: { (error) in
+                print(error)
+            })
+```
 
 ## Room
 
-### create room (group)
+### Create Group Room
 
 ```
 Qiscus.newRoom(withUsers: ["user_id1", "user_id2"], roomName: "My RoomName", onSuccess: { (room) in
@@ -277,9 +277,7 @@ Qiscus.newRoom(withUsers: ["user_id1", "user_id2"], roomName: "My RoomName", onS
         } 
 ```
 
-
-
-### get chat room by id
+### Get Chat Room By ID
 
 ```
 Qiscus.room(withId: roomId, onSuccess: { (room) in
@@ -291,9 +289,7 @@ Qiscus.room(withId: roomId, onSuccess: { (room) in
         }
 ```
 
-
-
-### get chat room by channel
+### Get Chat Room By Channel
 
 ```
 Qiscus.room(withChannel: channelName, onSuccess: { (room) in
@@ -305,9 +301,7 @@ Qiscus.room(withChannel: channelName, onSuccess: { (room) in
         }
 ```
 
-
-
-### get chat room opponent by user_id
+### Get Chat Room Opponent By User ID
 
 ```
 Qiscus.room(withUserId: userId, onSuccess: { (room) in
@@ -319,11 +313,7 @@ Qiscus.room(withUserId: userId, onSuccess: { (room) in
         }
 ```
 
-### get rooms info
-
-rooms info sometimes not contain message inside room
-
-* get room info with id
+### Get Room Info With ID
 
 ```
 Qiscus.roomInfo(withId: "13456", onSuccess: { (room) in
@@ -333,7 +323,7 @@ Qiscus.roomInfo(withId: "13456", onSuccess: { (room) in
         }
 ```
 
-* get multiple room info
+### Get Multiple Room Info
 
 ```
 Qiscus.roomsInfo(withIds: ["12345", "13456"], onSuccess: { (rooms) in
@@ -343,7 +333,7 @@ Qiscus.roomsInfo(withIds: ["12345", "13456"], onSuccess: { (rooms) in
         }
 ```
 
-* get channel info
+### Get Channel Info
 
 ```
 Qiscus.channelInfo(withName: "myChannel", onSuccess: { (room) in
@@ -353,7 +343,7 @@ Qiscus.channelInfo(withName: "myChannel", onSuccess: { (room) in
         }
 ```
 
-* get multiple channel info
+### Get Multiple Channel Info
 
 ```
 Qiscus.channelsInfo(withNames: ["myChannel1","myChannel2"], onSuccess: { (rooms) in
@@ -363,12 +353,7 @@ Qiscus.channelsInfo(withNames: ["myChannel1","myChannel2"], onSuccess: { (rooms)
         }
 ```
 
-
-
-### get rooms list
-
-*request always to server
-
+### Get Room List
 
 ```
 Qiscus.roomList(withLimit: 100, page: 1, onSuccess: { (rooms, totalRoom, currentPage, limit) in
@@ -381,13 +366,13 @@ Qiscus.roomList(withLimit: 100, page: 1, onSuccess: { (rooms, totalRoom, current
         }
 ```
 
-* get room list in localDB:
+### Get Room List in LocalDB
 
 ```
 let rooms = QRoom.all()
 ```
 
-### update room (including update options)
+### Update Room
 
 ```
 var room:QRoom?
@@ -398,10 +383,10 @@ room.update(roomName: roomName, roomAvatarURL: avatar, onSuccess: { (qRoom) in
             })
 ```
 
-### Getting a list of participants in a room
+### Get List Of Participant in a Room
 
 ```
- Qiscus.room(withId: roomId!, onSuccess: { (room) in
+Qiscus.room(withId: roomId!, onSuccess: { (room) in
             // getroom list participant
           let allparticipant = room.participants
         }) { (error) in
@@ -409,42 +394,29 @@ room.update(roomName: roomName, roomAvatarURL: avatar, onSuccess: { (qRoom) in
         }
 ```
 
-### Leaving the chat room (probably new API)
-
-You can read [this](https://www.qiscus.com/documentation/android/latest/getting-started#group-chat-room) documentation, and goto **Participant Management **section, or you can check [this](https://www.qiscus.com/documentation/rest/latest/list-api#remove-room-participants) **Server API** documentation. Because currently we only provide in **Server API.**
-
-
 ## Statuses
 
-### publish start typing
+### Publish Start Typing
 
 ```
 room.publishStartTyping()
 ```
 
-
-
-### publish stop typing
+### Publish Stop Typing
 
 ```
 room.publishStopTyping()
 ```
 
-
-
-### update message status (read)
+### Update Message Read Status
 
 ```
 QRoom.publishStatus(roomId: roomId, commentId: commentId, status: .read)
 ```
 
-### Getting participants' online statuses
+### View Who Has Received And Read Message
 
-### 
-
-### Viewing who has Received and read a message
-
-To get information who has received and read a message, We can get all data member in QComment. In QComment class have a variable readUser and deliveredUser. 
+To get information who has received and read a message, We can get all data member in QComment. In QComment class have a variable readUser and deliveredUser.
 
 ```
 var comment : QComment?
@@ -453,13 +425,11 @@ comment?.statusInfo?.readUser //list data users have been read comment
 comment?.statusInfo?.readUser.count //count of data users have been read comment
 comment?.statusInfo?.deliveredUser //list data users have been delivered comment
 comment?.statusInfo?.deliveredUser.count //count of data users have been delivered comment
-
 ```
 
-We can get a update users status delivered and received message with **QParticipantDelegate.**
+We can get a update users status delivered and received message with `QParticipantDelegate`
 
 ```
-
 extension YourViewController: QParticipantDelegate{
     //in function show your tableview
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -478,19 +448,17 @@ extension YourViewController: QParticipantDelegate{
 }
 ```
 
-
-
 ## Event Handler
 
-### on receive message
+### New Messages
 
-* listen to notification
+Listen to notification.
 
 ```
-NotificationCenter.default.addObserver(self, selector: #selector(YOUR_CLASS.newCommentNotif(_:)), name: QiscusNotification.GOT_NEW_COMMENT, object: nil)
+NotificationCenter.default.addObserver(self, selector: #selector(YOUR_CLASS.userTyping(_:)), name: QiscusNotification.USER_TYPING(onRoom: "Your room id"), object: nil)
 ```
 
-* get data on your selector
+Get data on your selector.
 
 ```
 func newCommentNotif(_ notification: Notification){
@@ -504,25 +472,21 @@ func newCommentNotif(_ notification: Notification){
     }
 ```
 
+### Typing
 
-
-### on user typing (with information on which room)
-
-* subscribe notification channel
+Subscribe to notification channel.
 
 ```
 room.subscribeRealtimeStatus()
 ```
 
-
-
-* listen to notification
+Listen to notification.
 
 ```
-NotificationCenter.default.addObserver(self, selector: #selector(YOUR_CLASS.userTyping(_:)), name: QiscusNotification.USER_TYPING, object: nil)
+NotificationCenter.default.addObserver(self, selector: #selector(YOUR_CLASS.userTyping(_:)), name: QiscusNotification.USER_TYPING(onRoom: "Your room id"), object: nil)
 ```
 
-* get data on your selector
+Get data on your selector.
 
 ```
 func userTyping(_ notification: Notification){
@@ -536,16 +500,17 @@ func userTyping(_ notification: Notification){
 }
 ```
 
-### on message status change
+### Message Status Change
 
-* message status is object type QCommentStatus. the value can be .sending , .pending , .sent , .delivered, .read
-* listen to notification:
+Message status is object type QCommentStatus. The value can be .sending , .pending , .sent , .delivered, and .read
+
+Listen to notification.
 
 ```
 NotificationCenter.default.addObserver(self, selector: #selector(YOUR_CLASS.messageStatusChange(_:)), name: QiscusNotification.MESSAGE_STATUS, object: nil)
 ```
 
-* get data on your selector 
+Get data on your selector.
 
 ```
 func messageStatusChange(_ notification: Notification){
@@ -556,13 +521,14 @@ func messageStatusChange(_ notification: Notification){
     }
 ```
 
-**on message status change (update status in cell) - by using Delegate**
+### Message Status Change Using Delegate
 
-* message status is object type QCommentStatus. the value can be .sending , .pending , .sent , .delivered, .read
-* declaration object QComment in Cell Class
+Message status is object type QCommentStatus. the value can be .sending , .pending , .sent , .delivered, and .read
+
+Declared object QComment in Cell Class.
 
 ```
-    var comment:QComment?{
+var comment:QComment?{
         didSet{
             if oldValue != nil {
                 oldValue!.delegate = nil
@@ -579,7 +545,7 @@ func messageStatusChange(_ notification: Notification){
     }
 ```
 
-* extend QCommentDelegate & Implement callback update
+Extend QCommentDelegate & Implement callback update.
 
 ```
 class (YourClassCell) : UITableViewCell , QCommentDelegate{
@@ -597,25 +563,14 @@ class (YourClassCell) : UITableViewCell , QCommentDelegate{
 }
 ```
 
-
-
-
 ## Notification
 
-### Push Notifications
+### Push Notification
 
-* REGISTER DEVICE TOKEN
+Register device token. Will Receive Push Notification in AppDelegate on didReceiveRemoteNotification 
 
 ```
-Qiscus.didRegisterUserNotification(withToken: token)    
+Qiscus.didRegisterUserNotification(withToken: token)
 ```
 
-* Will Receive Push Notification Payload 
-
-
-
-=======
-## Project Example
-
-https://bitbucket.org/qiscus/custom-chatroom
 

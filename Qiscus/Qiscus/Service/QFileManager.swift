@@ -77,7 +77,7 @@ extension FileManager {
                 try self.removeItem(atPath: path)
             }
         } catch {
-            print(error)
+            Qiscus.printLog(text: error.localizedDescription)
         }
     }
 }

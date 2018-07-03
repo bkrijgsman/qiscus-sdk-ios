@@ -19,6 +19,7 @@ extension QiscusChatVC:CNContactPickerDelegate{
             let newComment = self.chatRoom!.newContactComment(name: name, value: value)
             self.postComment(comment: newComment)
             self.chatRoom!.post(comment: newComment)
+            self.addCommentToCollectionView(comment: newComment)
         }
         let contactName = "\(contact.givenName) \(contact.familyName)".trimmingCharacters(in: .whitespacesAndNewlines)
         let contactSheetController = UIAlertController(title: contactName, message: "select contact you want to share", preferredStyle: .actionSheet)
@@ -97,44 +98,49 @@ extension QiscusChatVC {
     func showAttachmentMenu(){
         let actionSheetController = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
         
-        let cancelActionButton = UIAlertAction(title: "Cancel", style: .cancel) { action -> Void in
+        let cancelActionButton = UIAlertAction(title: "CANCEL".getLocalize(), style: .cancel) { action -> Void in
             Qiscus.printLog(text: "Cancel attach file")
         }
         actionSheetController.addAction(cancelActionButton)
         
         if Qiscus.shared.cameraUpload {
-            let cameraActionButton = UIAlertAction(title: "Camera", style: .default) { action -> Void in
+            let cameraActionButton = UIAlertAction(title: "CAMERA".getLocalize(), style: .default) { action -> Void in
                 self.uploadFromCamera()
             }
             actionSheetController.addAction(cameraActionButton)
         }
         
         if Qiscus.shared.galeryUpload {
-            let galeryActionButton = UIAlertAction(title: "Gallery", style: .default) { action -> Void in
+            let galeryActionButton = UIAlertAction(title: "GALLERY".getLocalize(), style: .default) { action -> Void in
                 self.uploadImage()
             }
             actionSheetController.addAction(galeryActionButton)
         }
         
         if Qiscus.sharedInstance.iCloudUpload {
-            let iCloudActionButton = UIAlertAction(title: "Document", style: .default) { action -> Void in
+            let iCloudActionButton = UIAlertAction(title: "DOCUMENT".getLocalize(), style: .default) { action -> Void in
                 self.iCloudOpen()
             }
             actionSheetController.addAction(iCloudActionButton)
         }
         
         if Qiscus.shared.contactShare {
-            let contactActionButton = UIAlertAction(title: "Contact", style: .default) { action -> Void in
+            let contactActionButton = UIAlertAction(title: "CONTACT".getLocalize(), style: .default) { action -> Void in
                 self.shareContact()
             }
             actionSheetController.addAction(contactActionButton)
         }
         if Qiscus.shared.locationShare {
-            let contactActionButton = UIAlertAction(title: "Current Location", style: .default) { action -> Void in
+            let contactActionButton = UIAlertAction(title: "CURRENT_LOCATION".getLocalize(), style: .default) { action -> Void in
                 self.shareCurrentLocation()
             }
             actionSheetController.addAction(contactActionButton)
         }
+        
+        if let delegate = self.delegate{
+            delegate.chatVC?(didTapAttachment: actionSheetController, viewController: self, onRoom: self.chatRoom)
+        }
+        
         self.present(actionSheetController, animated: true, completion: nil)
     }
     func shareCurrentLocation(){
@@ -144,7 +150,7 @@ extension QiscusChatVC {
         if CLLocationManager.locationServicesEnabled() {
             switch CLLocationManager.authorizationStatus() {
             case .authorizedAlways, .authorizedWhenInUse:
-                self.showLoading("Getting your current location")
+                self.showLoading("LOADING_LOCATION".getLocalize())
                 
                 locationManager.delegate = self
                 locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
@@ -279,7 +285,7 @@ extension QiscusChatVC {
                             if room.isPublicChannel {
                                 subtitleString = "\(room.roomTotalParticipant) people"
                             } else {
-                                subtitleString = "You"
+                                subtitleString = "YOU".getLocalize()
                                 for participant in room.participants {
                                     if participant.email != Qiscus.client.email {
                                         if let user = participant.user {
@@ -296,7 +302,7 @@ extension QiscusChatVC {
                                             if user.presence == .offline{
                                                 let lastSeenString = user.lastSeenString
                                                 if lastSeenString != "" {
-                                                    subtitleString = "last seen: \(user.lastSeenString)"
+                                                    subtitleString = "LAST_SEEN".getLocalize(value: "\(user.lastSeenString)")
                                                 }
                                             }else{
                                                 subtitleString = "online"
@@ -501,56 +507,7 @@ extension QiscusChatVC {
                 let comment = chatRoomObj.newComment(text: value, payload: payload, type: type)
                 self.postComment(comment: comment)
                 
-                var section = 0
-                var item = 0
-                if comment.sender?.email == Qiscus.client.email {
-                    if let lastUid = self.collectionView.messagesId.last?.last {
-                        if let lastComment = QComment.comment(withUniqueId: lastUid) {
-                            section = self.collectionView.messagesId.count - 1
-                            item = (self.collectionView.messagesId.last?.count)! - 1
-                            
-                            if lastComment.date == comment.date && lastComment.sender?.email == comment.sender?.email {
-                                var lastGroup = self.collectionView.messagesId.last
-                                lastGroup?.append(comment.uniqueId)
-                                
-                                self.collectionView.messagesId.removeLast()
-                                self.collectionView.messagesId.append(lastGroup!)
-                                
-                                let newIndexPath = IndexPath(row: item + 1, section: section)
-                                
-                                self.collectionView.performBatchUpdates({
-                                    self.collectionView.insertItems(at: [newIndexPath])
-                                }, completion: { (success) in
-                                    self.collectionView.layoutIfNeeded()
-                                    self.collectionView.scrollToBottom(true)
-                                    
-                                    if lastComment.cellPos == .single {
-                                        lastComment.updateCellPos(cellPos: .first)
-                                    }else if lastComment.cellPos == .last {
-                                        lastComment.updateCellPos(cellPos: .middle)
-                                    }
-                                    let lastIndexPath = IndexPath(row: item, section: section)
-                                    self.collectionView.reloadItems(at: [lastIndexPath])
-                                    
-                                })
-                                
-                            } else {
-                                self.collectionView.messagesId.append([comment.uniqueId])
-                                let newIndexPath = IndexPath(row: 0, section: section + 1)
-                                comment.updateCellPos(cellPos: .single)
-                                self.collectionView.performBatchUpdates({
-                                    self.collectionView.insertSections(IndexSet(integer: section + 1))
-                                    self.collectionView.insertItems(at: [newIndexPath])
-                                }, completion: { (success) in
-                                    self.collectionView.layoutIfNeeded()
-                                    self.collectionView.scrollToBottom(true)
-                                })
-                            }
-                        }
-                        
-                        
-                    }
-                }
+                self.addCommentToCollectionView(comment: comment)
             }
         }else{
             if !self.processingAudio {
@@ -566,6 +523,63 @@ extension QiscusChatVC {
         //        }
     }
     
+    func addCommentToCollectionView(comment: QComment) {
+        var section = 0
+        var item = 0
+        if comment.sender?.email == Qiscus.client.email {
+            if let lastUid = self.collectionView.messagesId.last?.last {
+                if let lastComment = QComment.comment(withUniqueId: lastUid) {
+                    section = self.collectionView.messagesId.count - 1
+                    item = (self.collectionView.messagesId.last?.count)! - 1
+                    
+                    if lastComment.date == comment.date && lastComment.sender?.email == comment.sender?.email {
+                        var lastGroup = self.collectionView.messagesId.last
+                        lastGroup?.append(comment.uniqueId)
+                        
+                        self.collectionView.messagesId.removeLast()
+                        self.collectionView.messagesId.append(lastGroup!)
+                        
+                        let newIndexPath = IndexPath(row: item + 1, section: section)
+                        
+                        self.collectionView.performBatchUpdates({
+                            self.collectionView.insertItems(at: [newIndexPath])
+                        }, completion: { (success) in
+                            self.collectionView.layoutIfNeeded()
+                            self.collectionView.scrollToBottom(true)
+                            
+                            if lastComment.cellPos == .single {
+                                lastComment.updateCellPos(cellPos: .first)
+                            }else if lastComment.cellPos == .last {
+                                lastComment.updateCellPos(cellPos: .middle)
+                            }
+                            let lastIndexPath = IndexPath(row: item, section: section)
+                            self.collectionView.reloadItems(at: [lastIndexPath])
+                            
+                        })
+                        
+                    } else {
+                        self.collectionView.messagesId.append([comment.uniqueId])
+                        let newIndexPath = IndexPath(row: 0, section: section + 1)
+                        comment.updateCellPos(cellPos: .single)
+                        self.collectionView.performBatchUpdates({
+                            self.collectionView.insertSections(IndexSet(integer: section + 1))
+                            self.collectionView.insertItems(at: [newIndexPath])
+                        }, completion: { (success) in
+                            self.collectionView.layoutIfNeeded()
+                            self.collectionView.scrollToBottom(true)
+                        })
+                    }
+                }
+                
+                
+            } else {
+                self.collectionView.messagesId.append([comment.uniqueId])
+                let newIndexPath = IndexPath(row: 0, section: 0)
+                comment.updateCellPos(cellPos: .single)
+                self.collectionView.reloadData()
+            }
+        }
+    }
     
     func uploadImage(){
         view.endEditing(true)
@@ -802,6 +816,7 @@ extension QiscusChatVC {
             
             let newComment = self.chatRoom!.newFileComment(type: .audio, filename: fileName, data: fileContent!)
             
+            self.addCommentToCollectionView(comment: newComment)
             self.chatRoom!.upload(comment: newComment, onSuccess: { (roomResult, commentResult) in
                 self.postComment(comment: commentResult)
             }, onError: { (roomResult, commentResult, error) in
@@ -832,7 +847,7 @@ extension QiscusChatVC {
     func postFile(filename:String, data:Data? = nil, type:QiscusFileType, thumbImage:UIImage? = nil){
         if Qiscus.sharedInstance.connected {
             let newComment = self.chatRoom!.newFileComment(type: type, filename: filename, data: data, thumbImage: thumbImage)
-            
+            self.addCommentToCollectionView(comment: newComment)
             self.chatRoom!.upload(comment: newComment, onSuccess: { (roomResult, commentResult) in
                 self.postComment(comment: commentResult)
             }, onError: { (roomResult, commentResult, error) in

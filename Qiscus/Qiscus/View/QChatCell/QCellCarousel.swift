@@ -83,7 +83,7 @@ public class QCellCarousel: QChatCell{
             
             if self.showUserName{
                 if c.senderEmail == Qiscus.client.email {
-                    self.userNameLabel.text = "You"
+                    self.userNameLabel.text = "YOU".getLocalize()
                 } else if let sender = c.sender {
                     self.userNameLabel.text = sender.fullname
                 }else{

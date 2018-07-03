@@ -60,7 +60,7 @@ class QCellLocationRight: QChatCell {
         self.locationLabel.text = payload["name"].stringValue
         
         if self.showUserName{
-            self.userNameLabel.text = "You"
+            self.userNameLabel.text = "YOU".getLocalize()
             self.userNameLabel.isHidden = false
             self.topMargin.constant = 20
         }else{

@@ -210,7 +210,6 @@ extension QiscusChatVC:UIImagePickerControllerDelegate, UINavigationControllerDe
                 if info.keys.contains(NSString(string: "PHImageFileURLKey")) {
                     if let path = info[NSString(string: "PHImageFileURLKey")] as? NSURL {
                         imageName = path.lastPathComponent!
-                        print("image localpath \(path)")
                     }
                 }
             }

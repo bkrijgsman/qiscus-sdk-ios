@@ -16,6 +16,7 @@ enum QUploaderType {
 
 class QiscusUploaderVC: UIViewController, UIScrollViewDelegate {
 
+    @IBOutlet weak var cancelButton: UIButton!
     @IBOutlet weak var sendButton: UIButton!
     @IBOutlet weak var scrollView: UIScrollView!
     @IBOutlet weak var imageView: UIImageView!
@@ -43,6 +44,7 @@ class QiscusUploaderVC: UIViewController, UIScrollViewDelegate {
         let sendImage = Qiscus.image(named: "send")?.withRenderingMode(.alwaysTemplate)
         self.sendButton.setImage(sendImage, for: .normal)
         self.sendButton.tintColor = Qiscus.shared.styleConfiguration.color.topColor
+        self.cancelButton.setTitle("CANCEL".getLocalize(), for: .normal)
         self.mediaCaption.chatInputDelegate = self
         self.mediaCaption.font = Qiscus.style.chatFont
         self.mediaCaption.placeholder = QiscusTextConfiguration.sharedInstance.captionPlaceholder

@@ -804,13 +804,13 @@ public class QChatService:NSObject {
                         let meta = json["results"]["meta"]
                         let lastReceivedCommentId = meta["last_received_comment_id"].intValue
                         let needClear = meta["need_clear"].boolValue
-                        if needClear {
+                        let comments = json["results"]["comments"].arrayValue
+                        if needClear && comments.count > 1 {
                             QiscusBackgroundThread.async {
                                 QRoom.removeAllMessage()
                                 QiscusClient.updateLastCommentId(commentId: lastReceivedCommentId)
                             }
                         }else{
-                            let comments = json["results"]["comments"].arrayValue
                             var data = [String:[JSON]]()
                             var roomsName = [String:String]()
                             var needSyncRoom = [String]()
